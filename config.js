@@ -9,11 +9,24 @@ const config = {
     },
 
     // The searches the bot will do
+		// 'retweet competition',
+		// 'retweet contest',
+		// 'retweet giveaway',
+		// 'retweet win',
+		// 'RT win',
     SEARCH_QUERIES: [
-        'retweet to win',
-        'RT to win',
-        'retweet 2 win',
-        'RT 2 win'
+        'win uk retweet',
+        'win uk rt',
+        'competition uk retweet',
+        'competition uk rt',
+        'prize uk retweet',
+        'prize uk rt',
+		'giveaway uk retweet',
+        'giveaway uk rt',
+        'retweet to win uk',
+        'RT to win uk',
+        'retweet 2 win uk',
+        'RT 2 win uk'
     ],
 
     // Appended at the end of search queries to filter out some data
@@ -36,7 +49,7 @@ const config = {
     // - Significantly reduces the amount of fake contests retweeted and stops
     //    retweeting other bots that retweet retweets of other bots.
     // Default: 10
-    MIN_RETWEETS_NEEDED: 10,
+    MIN_RETWEETS_NEEDED: 8,
 
     // Maximum amount of tweets a user can have before we do not retweet them.
     // - Accounts with an extremely large amount of tweets are often bots,
@@ -59,10 +72,13 @@ const config = {
     RETWEET_TIMEOUT: 1000 * 15,
 
     // 30 seconds for Search Timeout
-    RATE_SEARCH_TIMEOUT: 1000 * 30,
+    RATE_SEARCH_TIMEOUT: 1000 * 60 * 3,
 
     // Array of preferred accounts. If set, it only filters tweets from these accounts. Example: ['user1', 'user2']
-    PREFERRED_ACCOUNTS: []
+    PREFERRED_ACCOUNTS: [],
+
+    // Tweets max days old (in MS).  Prevent applying to old competitions. 
+    MAX_DAYS_OLD: 3 * 1000 * 60 * 60 * 24
 };
 
 module.exports = config;

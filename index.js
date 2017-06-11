@@ -1,5 +1,7 @@
 const API = require('./api-functions');
 const config = require('./config');
+//const fs = require('fs');
+
 
 /** @class ContestJSBot */
 class ContestJSBot {
@@ -43,10 +45,17 @@ class ContestJSBot {
             let text = config.SEARCH_QUERIES[index] + config.SEARCH_QUERY_FILTERS;
 
             // Append preferred accounts if it's the case
-            if (config.PREFERRED_ACCOUNTS) {
+            if (config.PREFERRED_ACCOUNTS.length) {
                 text += ` from:${config.PREFERRED_ACCOUNTS.join(' OR from:')}`;
             }
 
+            // Append since parameter if set
+            if (config.MAX_DAYS_OLD > 0) {
+                var sinceWhenShortDate = new Date(Date.now() - config.MAX_DAYS_OLD).toISOString().substring(0, 10);
+                text += ' since:' + sinceWhenShortDate;
+            }
+
+			console.log('[Search] Search text: ' + text);
             API.search({text, result_type, since_id, geocode})
                 .then(res => {
                     // Call the search callback to process the data
@@ -55,7 +64,7 @@ class ContestJSBot {
                     if (config.SEARCH_QUERIES[index + 1]) {
                         // Sleep between searches so we do not trigger rate limit lockout
                         console.log(`[Search] Sleeping for ${config.RATE_SEARCH_TIMEOUT / 1000} seconds between searches so we don't trigger rate limit`);
-                        setTimeout(() => doSearch(index++), config.RATE_SEARCH_TIMEOUT);
+                        setTimeout(() => doSearch(++index), config.RATE_SEARCH_TIMEOUT);
                     }
                 })
                 .catch(err => this.errorHandler(err));
@@ -72,19 +81,32 @@ class ContestJSBot {
 
         // Iterate through tweets returned by the Search
         tweets.forEach(tweet => {
-
+			//console.log('[Tweet] Processing ' + tweet.id + '(' + tweet.text + ')');
+			
             // Lots of checks to filter out bad tweets, other bots and contests that are likely not legitimate :
             // If it's not already a retweet
-            if (tweet.retweeted_status || tweet.quoted_status_id) return;
+            if (tweet.retweeted_status || tweet.quoted_status_id){ 
+				//console.log('[Tweet] Its not already a retweet');
+				return;
+			}
 
             // It's not an ignored tweet
-            if (this.badTweetIds.indexOf(tweet.id) > -1) return;
+            if (this.badTweetIds.indexOf(tweet.id) > -1){
+				//console.log('[Tweet] Its an ignored tweet');
+				return;
+			}
 
             // Has enough retweets on the tweet for us to retweet it too (helps prove legitimacy)
-            if (tweet.retweet_count < config.MIN_RETWEETS_NEEDED) return;
+            if (tweet.retweet_count < config.MIN_RETWEETS_NEEDED){ 
+				//console.log('[Tweet] Not enough retweets (Only ' + tweet.retweet_count + ' retweets)');
+				return;
+			}
 
             // User is not on our blocked list
-            if (this.blockedUsers.indexOf(tweet.user.id) > -1) return;
+            if (this.blockedUsers.indexOf(tweet.user.id) > -1){ 
+				//console.log('[Tweet] Its blcoked');
+				return;
+			}
 
             // It doesn't contain phrases that we don't want
             if (config.POST_SEARCH_FILTERS.length) {
@@ -92,6 +114,7 @@ class ContestJSBot {
                 config.POST_SEARCH_FILTERS.forEach(phrase => {
                     if (tweet.text.indexOf(phrase) > -1) {
                         containsBlockedPhrases = true;
+						//console.log('[Tweet] It contains phrases that we dont want');
                         return false;
                     }
                 });
@@ -108,7 +131,8 @@ class ContestJSBot {
                 }
                 return;
             }
-
+			
+			//console.log('[Tweet] Its good')
             // Save the search item in the Search Results array
             this.searchResultsArr.push(tweet);
         });
@@ -120,7 +144,7 @@ class ContestJSBot {
 
         try {
             // If the error is 'Rate limit exceeded', code 88 - try again after 10 minutes
-            if (JSON.parse(err.error).errors[0].code === 88) {
+            if (JSON.parse(err.error).errors[0].code == 88) {
                 console.log('After ' + config.RATE_LIMIT_EXCEEDED_TIMEOUT / 60000 + ' minutes, I will try again to fetch some results...');
 
                 this.limitLockout = true; // suspend other functions from running while lockout is in effect
@@ -146,6 +170,11 @@ class ContestJSBot {
             // Pop the first element (by doing a shift() operation)
             var searchItem = this.searchResultsArr[0];
             this.searchResultsArr.shift();
+
+            // Update late tweet id
+            //last_tweet_id = searchItem.id
+
+            console.log(this.searchResultsArr.length + ' things to retweet.');
 
             // Retweet
             console.log('[Retweeting Tweet #]', searchItem.id);
@@ -174,12 +203,12 @@ class ContestJSBot {
                     // Then, re-queue the RT Worker
                     setTimeout(() => this.worker(), config.RETWEET_TIMEOUT);
                 })
-                .catch(() => {
+                .catch((err) => {
                     console.error('[Error] RT Failed for', searchItem.id, '. Likely has already been retweeted. Adding to blacklist.');
-
+					//console.log('[Error]', err);
                     // If the RT fails, blacklist it
                     this.badTweetIds.push(searchItem.id);
-
+                    //fs.appendFileSync('badTweets.txt', searchItem.id);
                     // Then, re-start the RT Worker
                     setTimeout(() => this.worker(), config.RETWEET_TIMEOUT);
                 });
